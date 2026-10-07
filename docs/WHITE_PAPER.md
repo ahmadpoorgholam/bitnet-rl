@@ -115,8 +115,10 @@ with ratio $\rho_i=\pi_\theta(o_i|q)/\pi_{\theta_{old}}(o_i|q)$, the unbiased KL
 | `rl/rewards.py` | Accuracy and format rewards, R1-Zero template |
 | `rl/train_rl.py` | `GRPOTrainer` (collect → update → optional reference refresh) and the CLI (`toy`, `hf`) |
 | `rl/bitlinear.py` | BitNet b1.58-style `BitLinear`: absmean ternary weights, absmax int8 activations, STE |
-| `rl/toy.py` | Char-level tiny transformer, toy task and weak base policy for CPU demos |
-| `tests/` | 18 unit and smoke tests (loss math, clipping, masking, KL, rewards, trainer) |
+| `rl/numpy_ref.py` | Torch-free NumPy reference of the same math, with a hand-derived gradient and a tabular GRPO bandit |
+| `rl/toy.py` | Char-level tiny transformer, toy task, weak base policy and gold-completion perplexity for CPU demos |
+| `scripts/validate_cpu.py`, `scripts/make_badges.py` | 3-iteration CPU perplexity check; badge JSON generated from measured files |
+| `tests/` | 51 tests (loss math, NumPy cross-checks, perplexity, CLI, trainer); 98% line coverage of `rl/` |
 
 ### 4.4 Deviations from DeepSeek's setup
 
@@ -133,16 +135,33 @@ A 2-layer, 64-dim char-level transformer is pre-trained as a *weak base policy*:
 
 The two `nn.Linear` figures are the same seed on different thread counts (runs are not bit-reproducible); in-training accuracy at step 200 was 0.961 and 0.977. Evaluation is only 200 samples, so differences of a few points are noise.
 
-Reproduce with `python -m rl.train_rl toy --steps 200` and `... --bitlinear`.
+Reproduce with `python -m rl.train_rl toy --steps 200` and `... --bitlinear`. Section 4.6 adds the NumPy cross-checks and the 3-iteration perplexity check.
 
 **What this does and does not show.** It shows the implementation learns from rule-based group-relative rewards and that BitLinear layers with STE do not prevent it. It does not show anything about BitNet-scale language models, reasoning emergence, or the value-bottleneck effects discussed in Section 5; those need real checkpoints and compute. One seed (with at most two runs per configuration) is not a statistical claim.
 
 **A useful failure.** When the base policy answered *randomly* (never correct more often than chance), GRPO collapsed to answering the single most frequent sum for every question (accuracy plateau ≈ 0.2 for all learning rates tried) — a genuine reward optimum for a policy whose answer token carries no information about the question. RL amplifies capability the base policy already has; it did not create it here. This matches the R1 paper's premise of starting from a strong base model.
 
-### 4.6 Milestones
+### 4.6 Validation without a GPU
+
+**Math on paper.** `rl/numpy_ref.py` re-implements the objective in pure NumPy, including a hand-derived gradient (surrogate gradient $\rho A$ unless clipping is active; KL gradient $1-e^{\log\pi_{ref}-\log\pi_\theta}$). The tests check it against PyTorch for loss values (several clip/KL settings) and gradients (autograd and central finite differences).
+
+**Update direction.** A one-context softmax policy trained with exactly this update (`tabular_grpo`) lowers the perplexity $1/p(\text{correct})$ of the rewarded output from 6.0 to about 2.3 in 3 iterations; all 200 seeds tried improved. Groups with identical rewards leave the policy unchanged, as the advantage is zero.
+
+**Three iterations on the toy transformer.** `scripts/validate_cpu.py` pre-trains the weak base policy, measures perplexity on the *correct, well-formatted* completion of every question, runs 3 GRPO iterations (8 questions x 16 samples, lr $10^{-3}$) and measures again, for 8 seeds each:
+
+| Policy layers | Answer-digit perplexity (mean) | Whole-completion perplexity (mean) | Seeds improved |
+|---------------|--------------------------------|------------------------------------|----------------|
+| `nn.Linear` | 4.20 → 3.20 (−24%) | 1.052 → 1.036 (−1.5%) | 8 of 8 (both metrics) |
+| `BitLinear` | 4.58 → 4.11 (−10%) | 1.054 → 1.041 (−1.3%) | 8 of 8 (both metrics) |
+
+Whole-completion perplexity is dominated by fixed format characters the base model already predicts, so the answer-digit perplexity is the informative metric. Raw per-seed numbers are in `evidence/cpu_validation.json`; the README badges are generated from that file and from the coverage report.
+
+**Limits.** This is a 25-question arithmetic toy, so it validates the implementation and the update direction, not BitNet-scale behaviour. Perplexity is measured on the training questions (there is no held-out split). BitLinear improves less than full precision within 3 iterations; with 8 seeds that gap is suggestive, not established.
+
+### 4.7 Milestones
 
 1. **M0** — Empty scaffold + white paper. *Done.*
-2. **M1** — GRPO core, rule-based rewards, toy task with ordinary and BitLinear layers, tests. *Done (this version).*
+2. **M1** — GRPO core, rule-based rewards, toy task with ordinary and BitLinear layers, NumPy reference, CPU perplexity check, tests. *Done (this version).*
 3. **M2** — Run `hf` mode on a BF16 BitNet master checkpoint with a verifiable math set (the code path is exercised with a tiny random Llama; real BitNet weights untested; BitNet 2B4T needs the model card's `transformers` revision). *Open.*
 4. **M3** — KV-cached or `bitnet.cpp`-served rollouts for speed; latency/energy measurements. *Open.*
 5. **M4** — Compare against the DPO-only baseline on math benchmarks. *Open.*
@@ -194,8 +213,12 @@ rl/grpo.py               # GRPO math and sampling
 rl/rewards.py            # rule-based accuracy + format rewards
 rl/bitlinear.py          # BitNet-style BitLinear (ternary W, int8 A, STE)
 rl/toy.py                # toy model/task for CPU demos
-tests/                   # unit and smoke tests
-evidence/                # reserved for future locked metrics
+rl/numpy_ref.py          # torch-free NumPy reference + tabular GRPO
+scripts/                 # validate_cpu.py, make_badges.py
+badges/                  # shields.io endpoint JSON (generated)
+evidence/                # cpu_validation.json (measured)
+tests/                   # 51 unit, cross-check and smoke tests
+.github/workflows/ci.yml # CPU CI
 ```
 
 ---
