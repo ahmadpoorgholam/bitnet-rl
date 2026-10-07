@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "label": "CPU answer-ppl, 3 GRPO iters",
+  "message": "-24% / -10% (8 seeds, fp/ternary)",
+  "color": "brightgreen"
+}

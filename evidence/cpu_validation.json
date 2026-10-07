@@ -1,0 +1,61 @@
+{
+  "config": {
+    "iterations": 3,
+    "lr": 0.001,
+    "group_size": 16,
+    "questions_per_step": 8,
+    "device": "cpu",
+    "torch": "2.14.1+cpu"
+  },
+  "summary": {
+    "linear": {
+      "n_seeds": 8,
+      "ppl": {
+        "before_mean": 1.052,
+        "after_mean": 1.0358,
+        "relative_change": -0.0154,
+        "seeds_improved": 8
+      },
+      "answer_ppl": {
+        "before_mean": 4.199,
+        "after_mean": 3.1966,
+        "relative_change": -0.2387,
+        "seeds_improved": 8
+      }
+    },
+    "bitlinear": {
+      "n_seeds": 8,
+      "ppl": {
+        "before_mean": 1.0541,
+        "after_mean": 1.0408,
+        "relative_change": -0.0126,
+        "seeds_improved": 8
+      },
+      "answer_ppl": {
+        "before_mean": 4.5842,
+        "after_mean": 4.1098,
+        "relative_change": -0.1035,
+        "seeds_improved": 8
+      }
+    }
+  },
+  "runs": [
+    {"seed": 0, "bitlinear": false, "before": {"ppl": 1.0578, "answer_ppl": 5.2509}, "after": {"ppl": 1.0474, "answer_ppl": 5.1026}},
+    {"seed": 0, "bitlinear": true, "before": {"ppl": 1.0529, "answer_ppl": 4.7261}, "after": {"ppl": 1.0439, "answer_ppl": 4.5157}},
+    {"seed": 1, "bitlinear": false, "before": {"ppl": 1.0469, "answer_ppl": 3.6775}, "after": {"ppl": 1.0294, "answer_ppl": 2.6901}},
+    {"seed": 1, "bitlinear": true, "before": {"ppl": 1.0495, "answer_ppl": 4.1899}, "after": {"ppl": 1.0371, "answer_ppl": 3.5842}},
+    {"seed": 2, "bitlinear": false, "before": {"ppl": 1.0571, "answer_ppl": 4.0973}, "after": {"ppl": 1.0341, "answer_ppl": 2.9636}},
+    {"seed": 2, "bitlinear": true, "before": {"ppl": 1.0636, "answer_ppl": 5.1858}, "after": {"ppl": 1.0463, "answer_ppl": 4.8025}},
+    {"seed": 3, "bitlinear": false, "before": {"ppl": 1.0477, "answer_ppl": 3.8083}, "after": {"ppl": 1.0294, "answer_ppl": 2.677}},
+    {"seed": 3, "bitlinear": true, "before": {"ppl": 1.0483, "answer_ppl": 3.9594}, "after": {"ppl": 1.038, "answer_ppl": 3.6173}},
+    {"seed": 4, "bitlinear": false, "before": {"ppl": 1.0531, "answer_ppl": 4.2908}, "after": {"ppl": 1.0332, "answer_ppl": 3.103}},
+    {"seed": 4, "bitlinear": true, "before": {"ppl": 1.0574, "answer_ppl": 4.9215}, "after": {"ppl": 1.0442, "answer_ppl": 4.5542}},
+    {"seed": 5, "bitlinear": false, "before": {"ppl": 1.0528, "answer_ppl": 4.5016}, "after": {"ppl": 1.0343, "answer_ppl": 3.2474}},
+    {"seed": 5, "bitlinear": true, "before": {"ppl": 1.0534, "answer_ppl": 4.6266}, "after": {"ppl": 1.0392, "answer_ppl": 3.874}},
+    {"seed": 6, "bitlinear": false, "before": {"ppl": 1.0483, "answer_ppl": 3.6202}, "after": {"ppl": 1.0442, "answer_ppl": 2.4797}},
+    {"seed": 6, "bitlinear": true, "before": {"ppl": 1.0481, "answer_ppl": 3.4732}, "after": {"ppl": 1.0299, "answer_ppl": 2.7424}},
+    {"seed": 7, "bitlinear": false, "before": {"ppl": 1.0525, "answer_ppl": 4.3451}, "after": {"ppl": 1.0349, "answer_ppl": 3.3092}},
+    {"seed": 7, "bitlinear": true, "before": {"ppl": 1.0597, "answer_ppl": 5.5906}, "after": {"ppl": 1.0478, "answer_ppl": 5.1879}}
+  ],
+  "wall_seconds": 141.5
+}

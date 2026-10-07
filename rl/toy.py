@@ -104,6 +104,37 @@ def _base_completion(sample: ToySample, rng: random.Random, n: int, p_correct: f
     return f"<think>{a}+{b}</think>{guess}"
 
 
+def gold_completion(sample: ToySample) -> str:
+    a, b = sample.prompt.rstrip("=").split("+")
+    return f"<think>{a}+{b}</think><answer>{sample.answer}</answer>"
+
+
+@torch.no_grad()
+def gold_perplexity(model: TinyCausalLM, tok: CharTokenizer, n: int = 5) -> dict[str, float]:
+    """Perplexity of the policy on the correct, well-formatted completion of every question.
+
+    ``ppl`` is over all completion tokens (incl. EOS); ``answer_ppl`` only over the
+    answer digits. Lower is better; RL toward the rule-based reward should reduce both.
+    """
+    from rl.grpo import token_logprobs
+
+    was_training = model.training
+    model.eval()
+    nll_all, nll_ans = [], []
+    for s in toy_questions(n):
+        text = gold_completion(s)
+        ids = torch.tensor([tok.encode(text) + [tok.eos_id]])
+        nll = -token_logprobs(model, tok.encode(s.prompt), ids)[0]
+        start = text.index("<answer>") + len("<answer>")
+        nll_all.extend(nll.tolist())
+        nll_ans.extend(nll[start : start + len(s.answer)].tolist())
+    model.train(was_training)
+    return {
+        "ppl": math.exp(sum(nll_all) / len(nll_all)),
+        "answer_ppl": math.exp(sum(nll_ans) / len(nll_ans)),
+    }
+
+
 def pretrain_base(
     model: TinyCausalLM, tok: CharTokenizer, n: int = 5, steps: int = 400, seed: int = 0,
     batch: int = 64, lr: float = 3e-3, p_correct: float = 0.3,
