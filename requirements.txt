@@ -1,0 +1,4 @@
+torch>=2.2
+pytest>=8.0
+# only needed for `python -m rl.train_rl hf`
+transformers>=4.40
