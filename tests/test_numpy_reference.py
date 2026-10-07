@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 import torch
 
-from rl import numpy_ref as npr
-from rl.grpo import group_advantages, grpo_loss, kl_k3
+from bitnet_rl import numpy_ref as npr
+from bitnet_rl.grpo import group_advantages, grpo_loss, kl_k3
 
 
 def _random_group(seed, g=5, t=7):

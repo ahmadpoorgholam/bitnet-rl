@@ -21,10 +21,10 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from rl.grpo import GRPOConfig  # noqa: E402
-from rl.rewards import rule_reward  # noqa: E402
-from rl.toy import CharTokenizer, TinyCausalLM, gold_perplexity, pretrain_base, toy_questions  # noqa: E402
-from rl.train_rl import GRPOTrainer, Sample  # noqa: E402
+from bitnet_rl.grpo import GRPOConfig  # noqa: E402
+from bitnet_rl.rewards import rule_reward  # noqa: E402
+from bitnet_rl.toy import CharTokenizer, TinyCausalLM, gold_perplexity, pretrain_base, toy_questions  # noqa: E402
+from bitnet_rl.train_rl import GRPOTrainer, Sample  # noqa: E402
 
 
 def run_one(seed: int, bitlinear: bool, iterations: int, lr: float, questions_per_step: int) -> dict:

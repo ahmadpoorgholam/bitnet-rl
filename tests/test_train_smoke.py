@@ -2,10 +2,10 @@ import random
 
 import torch
 
-from rl.grpo import GRPOConfig
-from rl.rewards import rule_reward
-from rl.toy import CharTokenizer, TinyCausalLM, pretrain_base, toy_questions
-from rl.train_rl import GRPOTrainer, Sample
+from bitnet_rl.grpo import GRPOConfig
+from bitnet_rl.rewards import rule_reward
+from bitnet_rl.toy import CharTokenizer, TinyCausalLM, pretrain_base, toy_questions
+from bitnet_rl.train_rl import GRPOTrainer, Sample
 
 
 def test_trainer_step_updates_policy_and_keeps_reference_frozen():

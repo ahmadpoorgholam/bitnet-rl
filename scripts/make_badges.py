@@ -1,6 +1,6 @@
 """Generate shields.io endpoint JSON badges from *measured* artifacts.
 
-    python -m pytest --cov=rl --cov-report=json     # writes coverage.json
+    python -m pytest --cov=bitnet_rl --cov-report=json     # writes coverage.json
     python scripts/validate_cpu.py                  # writes evidence/cpu_validation.json
     python scripts/make_badges.py                   # writes badges/*.json
 

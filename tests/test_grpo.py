@@ -3,10 +3,10 @@ import math
 import pytest
 import torch
 
-from rl.bitlinear import BitLinear
-from rl.grpo import GRPOConfig, group_advantages, grpo_loss, kl_k3, sample_group, token_logprobs
-from rl.rewards import accuracy_reward, extract_answer, format_reward, rule_reward
-from rl.toy import CharTokenizer, TinyCausalLM
+from bitnet_rl.bitlinear import BitLinear
+from bitnet_rl.grpo import GRPOConfig, group_advantages, grpo_loss, kl_k3, sample_group, token_logprobs
+from bitnet_rl.rewards import accuracy_reward, extract_answer, format_reward, rule_reward
+from bitnet_rl.toy import CharTokenizer, TinyCausalLM
 
 
 def test_advantages_are_group_normalised():

@@ -6,10 +6,10 @@ import types
 
 import torch
 
-from rl.grpo import GRPOConfig
-from rl.rewards import rule_reward
-from rl.toy import CharTokenizer, TinyCausalLM, gold_completion, gold_perplexity, pretrain_base, toy_questions
-from rl.train_rl import GRPOTrainer, Sample, build_parser, load_jsonl, run_hf, run_toy
+from bitnet_rl.grpo import GRPOConfig
+from bitnet_rl.rewards import rule_reward
+from bitnet_rl.toy import CharTokenizer, TinyCausalLM, gold_completion, gold_perplexity, pretrain_base, toy_questions
+from bitnet_rl.train_rl import GRPOTrainer, Sample, build_parser, load_jsonl, run_hf, run_toy
 
 
 def test_gold_perplexity_is_one_for_a_perfect_model_and_high_for_random():
@@ -88,7 +88,7 @@ def test_run_hf_path_with_fake_transformers(tmp_path, monkeypatch, capsys):
         from_pretrained=lambda *_a, **_k: TinyCausalLM(inner.vocab_size, max_len=700)
     )
     monkeypatch.setitem(sys.modules, "transformers", fake)
-    monkeypatch.setattr("rl.train_rl.R1_ZERO_TEMPLATE", "{question}=")
+    monkeypatch.setattr("bitnet_rl.train_rl.R1_ZERO_TEMPLATE", "{question}=")
     data = tmp_path / "d.jsonl"
     data.write_text(json.dumps({"question": "1+2", "answer": "3"}) + "\n")
     args = argparse.Namespace(
