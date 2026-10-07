@@ -8,8 +8,8 @@
 | **Author** | Ahmad Poorgholam |
 | **Companion architecture** | [microsoft/BitNet](https://github.com/microsoft/BitNet) (`bitnet.cpp`) / BitNet b1.58 |
 | **Document class** | White paper — research framing, implementation notes, and toy-scale results |
-| **Version** | 1.1 — 2026-10-07 (v1.0 shipped `rl/train_rl.py` empty; v1.1 implements it) |
-| **Implementation** | `rl/train_rl.py` + `rl/grpo.py` — Group Relative Policy Optimization from DeepSeekMath / DeepSeek-R1 |
+| **Version** | 1.1 — 2026-10-07 (v1.0 shipped `bitnet_rl/train_rl.py` empty; v1.1 implements it) |
+| **Implementation** | `bitnet_rl/train_rl.py` + `bitnet_rl/grpo.py` — Group Relative Policy Optimization from DeepSeekMath / DeepSeek-R1 |
 
 ---
 
@@ -17,7 +17,7 @@
 
 BitNet b1.58 established a native 1.58-bit Transformer stack (ternary weights $\{-1,0,+1\}$, 8-bit activations) with a three-stage post-training recipe: **pre-training → supervised fine-tuning (SFT) → direct preference optimization (DPO)**. The official BitNet b1.58 2B4T technical report explicitly leaves **reinforcement learning** (PPO, GRPO, and related policy-gradient methods) as **future work**. That vacant stage is the subject of this white paper.
 
-This repository first shipped that slot as an **empty** `rl/train_rl.py`. It is now filled with a from-scratch PyTorch implementation of **GRPO** as described in the DeepSeek-R1 paper (arXiv:2501.12948): critic-free group-relative advantages, a clipped surrogate, the k3 KL penalty to a reference policy, and the rule-based accuracy + format rewards of R1-Zero. A self-contained CPU demo exercises it on a tiny transformer built either from ordinary linear layers or from BitNet-style `BitLinear` layers (ternary weights, int8 activations, straight-through estimator). Two research agendas remain: (1) RL *for* BitNet reasoning post-DPO, and (2) RL *with* BitNet as a frozen edge encoder (BitRL-style agents). Real BitNet checkpoints have **not** yet been trained with this code.
+This repository first shipped that slot as an **empty** `bitnet_rl/train_rl.py`. It is now filled with a from-scratch PyTorch implementation of **GRPO** as described in the DeepSeek-R1 paper (arXiv:2501.12948): critic-free group-relative advantages, a clipped surrogate, the k3 KL penalty to a reference policy, and the rule-based accuracy + format rewards of R1-Zero. A self-contained CPU demo exercises it on a tiny transformer built either from ordinary linear layers or from BitNet-style `BitLinear` layers (ternary weights, int8 activations, straight-through estimator). Two research agendas remain: (1) RL *for* BitNet reasoning post-DPO, and (2) RL *with* BitNet as a frozen edge encoder (BitRL-style agents). Real BitNet checkpoints have **not** yet been trained with this code.
 
 ---
 
@@ -27,7 +27,7 @@ Released BitNet inference code (`bitnet.cpp`) optimizes **forward** kernels for 
 
 The BitNet b1.58 2B4T report states that while PPO or GRPO can further improve mathematics and chain-of-thought reasoning, the published model relies solely on pre-training, SFT, and DPO; **exploration of reinforcement learning remains future work**.
 
-This repository therefore began by shipping that slot as an explicit, empty `rl/train_rl.py` — a visible gap in the training pipeline — and now fills it with GRPO (Section 4).
+This repository therefore began by shipping that slot as an explicit, empty `bitnet_rl/train_rl.py` — a visible gap in the training pipeline — and now fills it with GRPO (Section 4).
 
 ---
 
@@ -93,7 +93,7 @@ This white paper does **not** reproduce third-party numerical claims as our own 
 
 ---
 
-## 4. Implementation — GRPO in `rl/`
+## 4. Implementation — GRPO in `bitnet_rl/`
 
 ### 4.1 Algorithm (from the DeepSeek-R1 paper, Sec. 2.1)
 
@@ -111,14 +111,14 @@ with ratio $\rho_i=\pi_\theta(o_i|q)/\pi_{\theta_{old}}(o_i|q)$, the unbiased KL
 
 | File | Role |
 |------|------|
-| `rl/grpo.py` | Group advantages, k3 KL, clipped GRPO loss, group sampling, token log-probs |
-| `rl/rewards.py` | Accuracy and format rewards, R1-Zero template |
-| `rl/train_rl.py` | `GRPOTrainer` (collect → update → optional reference refresh) and the CLI (`toy`, `hf`) |
-| `rl/bitlinear.py` | BitNet b1.58-style `BitLinear`: absmean ternary weights, absmax int8 activations, STE |
-| `rl/numpy_ref.py` | Torch-free NumPy reference of the same math, with a hand-derived gradient and a tabular GRPO bandit |
-| `rl/toy.py` | Char-level tiny transformer, toy task, weak base policy and gold-completion perplexity for CPU demos |
+| `bitnet_rl/grpo.py` | Group advantages, k3 KL, clipped GRPO loss, group sampling, token log-probs |
+| `bitnet_rl/rewards.py` | Accuracy and format rewards, R1-Zero template |
+| `bitnet_rl/train_rl.py` | `GRPOTrainer` (collect → update → optional reference refresh) and the CLI (`toy`, `hf`) |
+| `bitnet_rl/bitlinear.py` | BitNet b1.58-style `BitLinear`: absmean ternary weights, absmax int8 activations, STE |
+| `bitnet_rl/numpy_ref.py` | Torch-free NumPy reference of the same math, with a hand-derived gradient and a tabular GRPO bandit |
+| `bitnet_rl/toy.py` | Char-level tiny transformer, toy task, weak base policy and gold-completion perplexity for CPU demos |
 | `scripts/validate_cpu.py`, `scripts/make_badges.py` | 3-iteration CPU perplexity check; badge JSON generated from measured files |
-| `tests/` | 51 tests (loss math, NumPy cross-checks, perplexity, CLI, trainer); 98% line coverage of `rl/` |
+| `tests/` | 51 tests (loss math, NumPy cross-checks, perplexity, CLI, trainer); 98% line coverage of `bitnet_rl/` |
 
 ### 4.4 Deviations from DeepSeek's setup
 
@@ -135,7 +135,7 @@ A 2-layer, 64-dim char-level transformer is pre-trained as a *weak base policy*:
 
 The two `nn.Linear` figures are the same seed on different thread counts (runs are not bit-reproducible); in-training accuracy at step 200 was 0.961 and 0.977. Evaluation is only 200 samples, so differences of a few points are noise.
 
-Reproduce with `python -m rl.train_rl toy --steps 200` and `... --bitlinear`. Section 4.6 adds the NumPy cross-checks and the 3-iteration perplexity check.
+Reproduce with `python -m bitnet_rl.train_rl toy --steps 200` and `... --bitlinear`. Section 4.6 adds the NumPy cross-checks and the 3-iteration perplexity check.
 
 **What this does and does not show.** It shows the implementation learns from rule-based group-relative rewards and that BitLinear layers with STE do not prevent it. It does not show anything about BitNet-scale language models, reasoning emergence, or the value-bottleneck effects discussed in Section 5; those need real checkpoints and compute. One seed (with at most two runs per configuration) is not a statistical claim.
 
@@ -143,7 +143,7 @@ Reproduce with `python -m rl.train_rl toy --steps 200` and `... --bitlinear`. Se
 
 ### 4.6 Validation without a GPU
 
-**Math on paper.** `rl/numpy_ref.py` re-implements the objective in pure NumPy, including a hand-derived gradient (surrogate gradient $\rho A$ unless clipping is active; KL gradient $1-e^{\log\pi_{ref}-\log\pi_\theta}$). The tests check it against PyTorch for loss values (several clip/KL settings) and gradients (autograd and central finite differences).
+**Math on paper.** `bitnet_rl/numpy_ref.py` re-implements the objective in pure NumPy, including a hand-derived gradient (surrogate gradient $\rho A$ unless clipping is active; KL gradient $1-e^{\log\pi_{ref}-\log\pi_\theta}$). The tests check it against PyTorch for loss values (several clip/KL settings) and gradients (autograd and central finite differences).
 
 **Update direction.** A one-context softmax policy trained with exactly this update (`tabular_grpo`) lowers the perplexity $1/p(\text{correct})$ of the rewarded output from 6.0 to about 2.3 in 3 iterations; all 200 seeds tried improved. Groups with identical rewards leave the policy unchanged, as the advantage is zero.
 
@@ -208,12 +208,12 @@ README.md
 LICENSE
 requirements.txt
 docs/WHITE_PAPER.md      # this document
-rl/train_rl.py           # GRPOTrainer + CLI (was empty in v1.0)
-rl/grpo.py               # GRPO math and sampling
-rl/rewards.py            # rule-based accuracy + format rewards
-rl/bitlinear.py          # BitNet-style BitLinear (ternary W, int8 A, STE)
-rl/toy.py                # toy model/task for CPU demos
-rl/numpy_ref.py          # torch-free NumPy reference + tabular GRPO
+bitnet_rl/train_rl.py           # GRPOTrainer + CLI (was empty in v1.0)
+bitnet_rl/grpo.py               # GRPO math and sampling
+bitnet_rl/rewards.py            # rule-based accuracy + format rewards
+bitnet_rl/bitlinear.py          # BitNet-style BitLinear (ternary W, int8 A, STE)
+bitnet_rl/toy.py                # toy model/task for CPU demos
+bitnet_rl/numpy_ref.py          # torch-free NumPy reference + tabular GRPO
 scripts/                 # validate_cpu.py, make_badges.py
 badges/                  # shields.io endpoint JSON (generated)
 evidence/                # cpu_validation.json (measured)

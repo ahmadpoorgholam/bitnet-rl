@@ -17,7 +17,7 @@ BitNet b1.58 is a 1.58-bit large language model: every weight is ternary (-1, 0,
 
 This project does two things:
 
-1. It records that gap by starting from an **empty** `rl/train_rl.py` (the first commit).
+1. It records that gap by starting from an **empty** `bitnet_rl/train_rl.py` (the first commit).
 2. It fills the gap with **GRPO**, the critic-free RL algorithm DeepSeek used for DeepSeekMath and DeepSeek-R1-Zero ([arXiv:2501.12948](https://arxiv.org/abs/2501.12948)), implemented from scratch in PyTorch. It then validates the implementation as far as a CPU-only machine allows.
 
 Honest scope: everything here is validated on a tiny arithmetic task. **No real BitNet checkpoint has been trained with this code.** That is the open next step, not a result.
@@ -42,7 +42,7 @@ The white paper is the source of the research questions. The code in this repo i
 
 1. **Located the gap.** Read the BitNet material to confirm RL is absent from the training stack, and made that visible as an empty scaffold.
 2. **Studied the method.** Took GRPO from the DeepSeek-R1 paper: group-normalised advantages (no value model), clipped surrogate, k3 KL penalty to a reference policy, and the R1-Zero accuracy plus format rule rewards.
-3. **Implemented it** (`rl/`): loss and sampling (`grpo.py`), rewards and R1-Zero prompt template (`rewards.py`), trainer and CLI that also accepts Hugging Face causal LMs (`train_rl.py`), and a BitNet-style `BitLinear` layer with ternary weights, int8 activations and STE (`bitlinear.py`).
+3. **Implemented it** (`bitnet_rl/`): loss and sampling (`grpo.py`), rewards and R1-Zero prompt template (`rewards.py`), trainer and CLI that also accepts Hugging Face causal LMs (`train_rl.py`), and a BitNet-style `BitLinear` layer with ternary weights, int8 activations and STE (`bitlinear.py`).
 4. **Built a CPU test bed** (`toy.py`): a 2-layer char-level transformer, an addition task, and a deliberately weak base policy (about 30% correct) so RL has something to amplify.
 5. **Verified the math independently** (`numpy_ref.py`): a torch-free NumPy implementation with a hand-derived gradient, cross-checked against PyTorch autograd and finite differences.
 6. **Measured what a CPU can show** (`scripts/validate_cpu.py`): three GRPO iterations, perplexity before and after, 8 seeds, with and without BitLinear.
@@ -70,37 +70,49 @@ No GPU is available, so validation is what a CPU can honestly show. The badges a
 | Method on paper | Loss, advantage, KL and clipping follow R1 Eq. 1-3 | Independent NumPy implementation agrees with PyTorch on loss values and gradients (autograd and finite differences), see `tests/test_numpy_reference.py` |
 | Update direction | The GRPO update raises probability and lowers perplexity of the rewarded output | NumPy tabular bandit: perplexity of the correct output 6.0 to about 2.3 after 3 iterations, 200 of 200 seeds improved |
 | 3-iteration CPU perplexity (toy transformer) | Perplexity on the gold completions falls after only 3 GRPO iterations | Answer-digit perplexity: linear -24%, BitLinear -10% (8 seeds each, **16 of 16 runs improved**). Whole-completion perplexity moves only about 1.5% because most tokens are fixed format characters. See `evidence/cpu_validation.json` |
-| Coverage | Lines of `rl/` exercised by the tests | 98% (`pytest --cov`), 51 tests |
+| Coverage | Lines of `bitnet_rl/` exercised by the tests | 98% (`pytest --cov`), 51 tests |
 
 What this does **not** show: anything about real BitNet checkpoints, language-model quality, or reasoning ability. Perplexity is measured on the 25 training questions of an arithmetic toy (no held-out split), and runs are noisy at the few-point level.
+
+## Install
+
+The package is named `bitnet-rl` (import name `bitnet_rl`). Once the first release is on PyPI:
+
+```bash
+pip install bitnet-rl            # torch + numpy
+pip install "bitnet-rl[hf]"      # plus transformers for the `hf` mode
+bitnet-rl toy --steps 200        # same as python -m bitnet_rl.train_rl toy
+```
+
+Until then, install from source with `pip install .` in a clone. Releases are published by `.github/workflows/publish.yml` using PyPI Trusted Publishing (no API token stored in the repo).
 
 ## Quick start
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q --cov=rl                     # 51 tests, CPU only
-python -m rl.numpy_ref                           # NumPy-only GRPO, no torch needed
+python -m pytest -q --cov=bitnet_rl                     # 51 tests, CPU only
+python -m bitnet_rl.numpy_ref                           # NumPy-only GRPO, no torch needed
 python scripts/validate_cpu.py --seeds 8         # 3 GRPO iterations, perplexity before/after
-python -m rl.train_rl toy --steps 200            # ordinary linear layers
-python -m rl.train_rl toy --steps 200 --bitlinear  # ternary weights, int8 activations
+python -m bitnet_rl.train_rl toy --steps 200            # ordinary linear layers
+python -m bitnet_rl.train_rl toy --steps 200 --bitlinear  # ternary weights, int8 activations
 ```
 
 On a Hugging Face model with a JSONL file of `{"question": ..., "answer": ...}` rows:
 
 ```bash
-python -m rl.train_rl hf --model <hf-id> --data train.jsonl --lr 3e-6 --group-size 16
+python -m bitnet_rl.train_rl hf --model <hf-id> --data train.jsonl --lr 3e-6 --group-size 16
 ```
 
 ## Repository layout
 
 | Path | Role |
 |------|------|
-| `rl/grpo.py` | Group advantages, k3 KL, clipped loss, sampling, token log-probs |
-| `rl/rewards.py` | R1-Zero accuracy and format rewards, prompt template |
-| `rl/train_rl.py` | `GRPOTrainer` and CLI (was empty in the first commit) |
-| `rl/bitlinear.py` | BitNet-style ternary-weight / int8-activation layer with STE |
-| `rl/numpy_ref.py` | Torch-free reference of the same math plus a tabular GRPO bandit |
-| `rl/toy.py` | Char-level toy transformer, task and gold-completion perplexity |
+| `bitnet_rl/grpo.py` | Group advantages, k3 KL, clipped loss, sampling, token log-probs |
+| `bitnet_rl/rewards.py` | R1-Zero accuracy and format rewards, prompt template |
+| `bitnet_rl/train_rl.py` | `GRPOTrainer` and CLI (was empty in the first commit) |
+| `bitnet_rl/bitlinear.py` | BitNet-style ternary-weight / int8-activation layer with STE |
+| `bitnet_rl/numpy_ref.py` | Torch-free reference of the same math plus a tabular GRPO bandit |
+| `bitnet_rl/toy.py` | Char-level toy transformer, task and gold-completion perplexity |
 | `scripts/` | `validate_cpu.py` (3-iteration check), `make_badges.py` |
 | `evidence/`, `badges/` | Measured results and the badge files generated from them |
 | `tests/` | Unit, cross-check, perplexity, CLI and smoke tests |
