@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "BitNet RL: GRPO for the missing reinforcement-learning stage of 1.58-bit LLMs"
+type: software
+authors:
+  - family-names: Poorgholam
+    given-names: Ahmad
+version: "1.1"
+date-released: 2026-10-07
+license: MIT
+repository-code: "https://github.com/ahmadpoorgholam/bitnet-rl"
+abstract: >-
+  A from-scratch PyTorch implementation of Group Relative Policy Optimization (GRPO)
+  for the reinforcement-learning stage that the BitNet b1.58 training recipe leaves
+  as future work, with an independent NumPy reference, a BitLinear policy, and
+  CPU-only validation at toy scale. No real BitNet checkpoint has been trained.
+keywords:
+  - BitNet
+  - 1.58-bit LLM
+  - ternary weights
+  - quantization-aware training
+  - reinforcement learning
+  - GRPO
+  - DeepSeek-R1
+  - RLVR
+  - policy gradient
+  - reasoning
+  - PyTorch
+  - NumPy
