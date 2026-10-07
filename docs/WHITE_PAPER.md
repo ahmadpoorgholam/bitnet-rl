@@ -1,15 +1,15 @@
 # BitNet Reinforcement Learning — White Paper
 
-**Filling the empty RL slot in the 1.58-bit LLM training stack**
+**Filling the empty RL slot in the 1.58-bit LLM training stack with DeepSeek-style GRPO**
 
 | Field | Value |
 |-------|--------|
 | **Project** | BitNet RL |
 | **Author** | Ahmad Poorgholam |
 | **Companion architecture** | [microsoft/BitNet](https://github.com/microsoft/BitNet) (`bitnet.cpp`) / BitNet b1.58 |
-| **Document class** | White paper — research framing and implementation agenda |
-| **Version** | 1.0 — 2026-10-07 |
-| **Empty artifact** | `rl/train_rl.py` (intentionally empty scaffold shipped with this repo) |
+| **Document class** | White paper — research framing, implementation notes, and toy-scale results |
+| **Version** | 1.1 — 2026-10-07 (v1.0 shipped `rl/train_rl.py` empty; v1.1 implements it) |
+| **Implementation** | `rl/train_rl.py` + `rl/grpo.py` — Group Relative Policy Optimization from DeepSeekMath / DeepSeek-R1 |
 
 ---
 
@@ -17,23 +17,17 @@
 
 BitNet b1.58 established a native 1.58-bit Transformer stack (ternary weights $\{-1,0,+1\}$, 8-bit activations) with a three-stage post-training recipe: **pre-training → supervised fine-tuning (SFT) → direct preference optimization (DPO)**. The official BitNet b1.58 2B4T technical report explicitly leaves **reinforcement learning** (PPO, GRPO, and related policy-gradient methods) as **future work**. That vacant stage is the subject of this white paper.
 
-We treat the missing RL stage as a first-class, distributeable artifact: an **empty** `rl/train_rl.py` file that marks where the architecture expects RL to land, and a concrete research program for filling it—covering (1) RL for BitNet *alignment and reasoning* (post-DPO), and (2) RL *with* BitNet as a frozen edge encoder (BitRL-style agents). The goal is a reproducible path from the empty scaffold to working PPO/GRPO and on-device policy learning on top of `bitnet.cpp`.
+This repository first shipped that slot as an **empty** `rl/train_rl.py`. It is now filled with a from-scratch PyTorch implementation of **GRPO** as described in the DeepSeek-R1 paper (arXiv:2501.12948): critic-free group-relative advantages, a clipped surrogate, the k3 KL penalty to a reference policy, and the rule-based accuracy + format rewards of R1-Zero. A self-contained CPU demo exercises it on a tiny transformer built either from ordinary linear layers or from BitNet-style `BitLinear` layers (ternary weights, int8 activations, straight-through estimator). Two research agendas remain: (1) RL *for* BitNet reasoning post-DPO, and (2) RL *with* BitNet as a frozen edge encoder (BitRL-style agents). Real BitNet checkpoints have **not** yet been trained with this code.
 
 ---
 
-## 1. Motivation — why an empty RL file?
+## 1. Motivation — the empty RL slot
 
 Released BitNet inference code (`bitnet.cpp`) optimizes **forward** kernels for W1.58A8. Training and alignment assets emphasize pre-training, SFT, and DPO. There is **no** shipped PPO/GRPO trainer in the official BitNet distribution.
 
 The BitNet b1.58 2B4T report states that while PPO or GRPO can further improve mathematics and chain-of-thought reasoning, the published model relies solely on pre-training, SFT, and DPO; **exploration of reinforcement learning remains future work**.
 
-This repository therefore **extracts and ships that empty slot** as an explicit file:
-
-```text
-rl/train_rl.py   # empty by design — the RL stage not yet filled in BitNet
-```
-
-An empty file is stronger than a comment in a paper: it is a contract for contributors and a visible gap in the architecture's training pipeline.
+This repository therefore began by shipping that slot as an explicit, empty `rl/train_rl.py` — a visible gap in the training pipeline — and now fills it with GRPO (Section 4).
 
 ---
 
@@ -56,9 +50,9 @@ Other components (RoPE, subln, ReLU² FFN in 2B4T, no biases) follow the publish
 | Pre-training | World knowledge on ~4T tokens | Done |
 | SFT | Instruction / chat | Done |
 | DPO | Preference alignment without a separate reward model | Done |
-| **RL (PPO / GRPO / …)** | Reasoning / math / tool use via reward signals | **Empty — this project** |
+| **RL (PPO / GRPO / …)** | Reasoning / math / tool use via reward signals | **Empty upstream; GRPO implemented here (toy-validated)** |
 
-DPO is preference optimization related to RLHF, but it is **not** on-policy reinforcement learning with a learned reward model and policy-gradient updates. The empty file marks that distinction.
+DPO is preference optimization related to RLHF, but it is **not** on-policy reinforcement learning with a learned reward model and policy-gradient updates. This repository's trainer implements the on-policy variant.
 
 ### 2.3 Inference stack coupling
 
@@ -99,33 +93,59 @@ This white paper does **not** reproduce third-party numerical claims as our own 
 
 ---
 
-## 4. Filling `rl/train_rl.py` — proposed API
+## 4. Implementation — GRPO in `rl/`
 
-The empty file should grow into a minimal, honest trainer interface:
+### 4.1 Algorithm (from the DeepSeek-R1 paper, Sec. 2.1)
 
-```python
-# Target shape (not yet implemented — file is empty by design)
+For each question $q$, sample a group of $G$ outputs from the current policy and maximise
 
-def build_bitnet_policy(model_id: str, train_heads_only: bool = True):
-    """Load BitNet backbone (+ optional LoRA) and policy/value heads."""
+$$\mathcal{J}(\theta)=\frac{1}{G}\sum_{i=1}^{G}\Big(\min\big(\rho_i A_i,\ \mathrm{clip}(\rho_i,1-\varepsilon,1+\varepsilon)A_i\big)-\beta\,\mathbb{D}_{KL}(\pi_\theta\Vert\pi_{ref})\Big)$$
 
-def rollout(env, policy, n_steps: int):
-    """Collect on-policy trajectories (prefer bitnet.cpp for edge eval)."""
+with ratio $\rho_i=\pi_\theta(o_i|q)/\pi_{\theta_{old}}(o_i|q)$, the unbiased KL estimator $\frac{\pi_{ref}}{\pi_\theta}-\log\frac{\pi_{ref}}{\pi_\theta}-1$, and the **critic-free advantage** $A_i=(R_i-\mathrm{mean}(R))/\mathrm{std}(R)$ computed within the group. There is no value model, which removes the component the paper identifies as most memory-hungry and most sensitive to tuning in PPO — and, under extreme quantization, the component most prone to bootstrapping error (Section 5).
 
-def ppo_update(batch, policy, clip_eps: float = 0.1, ent_coef: float = 0.01):
-    """Clipped surrogate + value loss; conservative defaults for ternary noise."""
+### 4.2 Rewards (R1-Zero, Sec. 2.2)
 
-def train_rl(config):
-    """Main entry: Agenda A (LLM rewards) or Agenda B (env rewards)."""
-```
+`Reward = Reward_acc + Reward_format`, equal weight, purely rule-based: accuracy checks the extracted `<answer>` (or `\boxed{}`) against ground truth, format checks that reasoning and answer sit in `<think>…</think><answer>…</answer>`. No neural reward model is used. The R1-Zero prompt template is provided as `R1_ZERO_TEMPLATE`.
 
-Implementation milestones:
+### 4.3 Code map
 
-1. **M0** — Empty scaffold + this white paper *(current)*.
-2. **M1** — Agenda B CartPole PPO with frozen stub encoder (no BitNet weights required).
-3. **M2** — Wire BF16 BitNet backbone + trainable heads; log returns/entropy/value loss.
-4. **M3** — `bitnet.cpp` inference path for edge latency/energy measurements.
-5. **M4** — Agenda A GRPO on a small math verifier set; compare to DPO-only baseline.
+| File | Role |
+|------|------|
+| `rl/grpo.py` | Group advantages, k3 KL, clipped GRPO loss, group sampling, token log-probs |
+| `rl/rewards.py` | Accuracy and format rewards, R1-Zero template |
+| `rl/train_rl.py` | `GRPOTrainer` (collect → update → optional reference refresh) and the CLI (`toy`, `hf`) |
+| `rl/bitlinear.py` | BitNet b1.58-style `BitLinear`: absmean ternary weights, absmax int8 activations, STE |
+| `rl/toy.py` | Char-level tiny transformer, toy task and weak base policy for CPU demos |
+| `tests/` | 18 unit and smoke tests (loss math, clipping, masking, KL, rewards, trainer) |
+
+### 4.4 Deviations from DeepSeek's setup
+
+R1-Zero used $\eta=3\times10^{-6}$, $\beta=0.001$, $G=16$, temperature 1, 32 questions per step, a reference refresh every 400 steps, and $\varepsilon=10$ in the first RL stage of R1. The defaults here follow $\beta$, $G$ and temperature; `clip_eps` defaults to the conventional 0.2 and the refresh interval is configurable (`--ref-update-every`). Not implemented: distributed rollout/training infrastructure, KV-cached generation, sequence packing, the language-consistency reward, and R1's multi-stage pipeline (cold-start SFT, rejection sampling). Loss aggregation is per-token ratio/KL averaged within each sequence, then across the group (the DeepSeekMath form).
+
+### 4.5 Toy-scale results (single seed, CPU)
+
+A 2-layer, 64-dim char-level transformer is pre-trained as a *weak base policy*: it knows the answer format but answers single-digit addition questions ($a+b$ with $0\le a,b\le4$) correctly only ~30% of the time and breaks the format ~30% of the time. GRPO then runs for 200 steps (8 questions × 16 samples per step, lr $10^{-3}$, seed 0). Evaluation samples 8 completions for each of the 25 questions.
+
+| Policy layers | Accuracy before → after | Format compliance before → after |
+|---------------|-------------------------|----------------------------------|
+| `nn.Linear` | 0.140 → 0.905 (rerun: 0.840) | 0.650 → 1.000 (rerun: 0.995) |
+| `BitLinear` (ternary W, int8 A) | 0.135 → 0.945 | 0.700 → 0.995 |
+
+The two `nn.Linear` figures are the same seed on different thread counts (runs are not bit-reproducible); in-training accuracy at step 200 was 0.961 and 0.977. Evaluation is only 200 samples, so differences of a few points are noise.
+
+Reproduce with `python -m rl.train_rl toy --steps 200` and `... --bitlinear`.
+
+**What this does and does not show.** It shows the implementation learns from rule-based group-relative rewards and that BitLinear layers with STE do not prevent it. It does not show anything about BitNet-scale language models, reasoning emergence, or the value-bottleneck effects discussed in Section 5; those need real checkpoints and compute. One seed (with at most two runs per configuration) is not a statistical claim.
+
+**A useful failure.** When the base policy answered *randomly* (never correct more often than chance), GRPO collapsed to answering the single most frequent sum for every question (accuracy plateau ≈ 0.2 for all learning rates tried) — a genuine reward optimum for a policy whose answer token carries no information about the question. RL amplifies capability the base policy already has; it did not create it here. This matches the R1 paper's premise of starting from a strong base model.
+
+### 4.6 Milestones
+
+1. **M0** — Empty scaffold + white paper. *Done.*
+2. **M1** — GRPO core, rule-based rewards, toy task with ordinary and BitLinear layers, tests. *Done (this version).*
+3. **M2** — Run `hf` mode on a BF16 BitNet master checkpoint with a verifiable math set (the code path is exercised with a tiny random Llama; real BitNet weights untested; BitNet 2B4T needs the model card's `transformers` revision). *Open.*
+4. **M3** — KV-cached or `bitnet.cpp`-served rollouts for speed; latency/energy measurements. *Open.*
+5. **M4** — Compare against the DPO-only baseline on math benchmarks. *Open.*
 
 ---
 
@@ -142,7 +162,7 @@ Implementation milestones:
 
 - Do **not** deploy Agenda B agents in safety-critical control without monitors (entropy/value-loss alarms, fallback policies).
 - Agenda A RL can amplify reward hacking and unsafe completions; keep preference/safety filters and KL budgets.
-- This repo starts from an **empty** trainer: no performance claims until locked metrics exist under `evidence/`.
+- Results in this repo are toy-scale; no performance claims about BitNet checkpoints exist until locked metrics are added under `evidence/`.
 
 ---
 
@@ -158,7 +178,7 @@ Implementation milestones:
 
 ## 8. Final goal
 
-**Ship a filled `rl/train_rl.py` that makes BitNet's missing RL stage executable**—first for edge policy heads on frozen 1.58-bit backbones, then for verifier-driven GRPO/PPO on BitNet itself—measured with locked returns, latency, memory, and energy, and kept honest about value-function limits under ternary quantization.
+**Make BitNet's missing RL stage executable at real scale** (the trainer now exists; real checkpoints are the open step)—first for edge policy heads on frozen 1.58-bit backbones, then for verifier-driven GRPO/PPO on BitNet itself—measured with locked returns, latency, memory, and energy, and kept honest about value-function limits under ternary quantization.
 
 ---
 
@@ -167,12 +187,17 @@ Implementation milestones:
 ```text
 README.md
 LICENSE
+requirements.txt
 docs/WHITE_PAPER.md      # this document
-rl/train_rl.py          # EMPTY — extracted vacant RL stage of the BitNet stack
-rl/README.md            # how to fill the empty file
-evidence/               # reserved for future locked metrics
+rl/train_rl.py           # GRPOTrainer + CLI (was empty in v1.0)
+rl/grpo.py               # GRPO math and sampling
+rl/rewards.py            # rule-based accuracy + format rewards
+rl/bitlinear.py          # BitNet-style BitLinear (ternary W, int8 A, STE)
+rl/toy.py                # toy model/task for CPU demos
+tests/                   # unit and smoke tests
+evidence/                # reserved for future locked metrics
 ```
 
 ---
 
-*End of BitNet RL White Paper v1.0*
+*End of BitNet RL White Paper v1.1*
