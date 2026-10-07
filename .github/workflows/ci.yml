@@ -18,8 +18,15 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install numpy pytest pytest-cov
       - name: Tests with coverage (CPU only)
-        run: python -m pytest -q --cov=rl --cov-report=term-missing --cov-fail-under=90
+        run: python -m pytest -q --cov=bitnet_rl --cov-report=term-missing --cov-fail-under=90
       - name: NumPy-only reference (no torch import)
-        run: python -m rl.numpy_ref
+        run: python -m bitnet_rl.numpy_ref
       - name: 3-iteration CPU perplexity check
         run: python scripts/validate_cpu.py --seeds 2 --iterations 3 --out /tmp/cpu_validation.json
+      - name: Build and install the wheel
+        run: |
+          pip install build twine
+          python -m build
+          twine check dist/*
+          pip install --no-deps dist/*.whl
+          cd /tmp && python -c "import bitnet_rl; print(bitnet_rl.__version__)"
